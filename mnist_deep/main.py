@@ -36,8 +36,17 @@ import tensorflow as tf
 
 FLAGS = None
 
-
-def deepnn(x):
+# Creates a deep neural network for processing our images. It does this by
+#  * Reshaping the image tensor
+#  * Running the image tensor through a convolution to produce 32 features
+#  * Pooling (max) the features from that convolution
+#  * Running the pooled features through another convolution to produce 64 features
+#  * Pooling (max) the second convolution
+#  * Flatening the produced downsampled features
+#  * Creating a fully connected layer to the downsampled features
+#  * Running the fully connected layer through a dropout
+#  * Returning a readout layer of tensors connected to the tensors kept during dropout.
+def create_deep_neural_net(x):
     """deepnn builds the graph for a deep net for classifying digits.
 
   Args:
@@ -45,18 +54,18 @@ def deepnn(x):
     number of pixels in a standard MNIST image.
 
   Returns:
-    A tuple (y, keep_prob). y is a tensor of shape (N_examples, 10), with values
+    A tuple (y, keep_probability). y is a tensor of shape (N_examples, 10), with values
     equal to the logits of classifying the digit into one of 10 classes (the
-    digits 0-9). keep_prob is a scalar placeholder for the probability of
+    digits 0-9). keep_probability is a scalar placeholder for the probability of
     dropout.
   """
     # Reshape to use within a convolutional neural net.
     # Last dimension is for "features" - there is only one here, since images are
-    # grayscale -- it would be 3 for an RGB image, 4 for RGBA, etc.
+    # greyscale -- it would be 3 for an RGB image, 4 for RGBA, etc.
     with tf.name_scope('reshape'):
         x_image = tf.reshape(x, [-1, 28, 28, 1])
 
-    # First convolutional layer - maps one grayscale image to 32 feature maps.
+    # First convolutional layer - maps one greyscale image to 32 feature maps.
     with tf.name_scope('conv1'):
         W_conv1 = weight_variable([5, 5, 1, 32])
         convolution1_bias = bias_variable([32])
@@ -84,20 +93,20 @@ def deepnn(x):
 
         # Flatten the pooled tensors in a single array
         pool2_flattened = tf.reshape(pool2, [-1, 7 * 7 * 64])
-        h_fc1 = tf.nn.relu(tf.matmul(pool2_flattened, fully_connected_layer_weight) + fully_connected_layer_bias)
+        fully_connected_layer = tf.nn.relu(tf.matmul(pool2_flattened, fully_connected_layer_weight) + fully_connected_layer_bias)
 
     # Dropout - controls the complexity of the model, prevents co-adaptation of features.
     with tf.name_scope('dropout'):
-        keep_prob = tf.placeholder(tf.float32)
-        h_fc1_drop = tf.nn.dropout(h_fc1, keep_prob)
+        keep_probability = tf.placeholder(tf.float32)
+        fully_connected_layer_dropped = tf.nn.dropout(fully_connected_layer, keep_probability)
 
     # Map the 1024 features to 10 classes, one for each digit
     with tf.name_scope('fc2'):
-        W_fc2 = weight_variable([1024, 10])
-        b_fc2 = bias_variable([10])
+        readout_weight = weight_variable([1024, 10])
+        readout_bias = bias_variable([10])
 
-        y_conv = tf.matmul(h_fc1_drop, W_fc2) + b_fc2
-    return y_conv, keep_prob
+        y_conv = tf.matmul(fully_connected_layer_dropped, readout_weight) + readout_bias
+    return y_conv, keep_probability
 
 # Performs a 2D Convolution over the input with the given filter.
 # Args:
@@ -134,16 +143,16 @@ def main(_):
     mnist = input_data.read_data_sets(FLAGS.data_dir, one_hot=True)
 
     # Create the tensor placeholder for an image
-    imagePlaceholder = tf.placeholder(tf.float32, [None, 784])
+    image_placeholder = tf.placeholder(tf.float32, [None, 784])
 
     # Define loss and optimizer
-    correctAnswer = tf.placeholder(tf.float32, [None, 10])
+    correct_answer = tf.placeholder(tf.float32, [None, 10])
 
     # Build the graph for the deep net
-    y_conv, keep_prob = deepnn(imagePlaceholder)
+    y_conv, keep_prob = create_deep_neural_net(image_placeholder)
 
     with tf.name_scope('loss'):
-        cross_entropy = tf.nn.softmax_cross_entropy_with_logits(labels=correctAnswer,
+        cross_entropy = tf.nn.softmax_cross_entropy_with_logits(labels=correct_answer,
                                                                 logits=y_conv)
     cross_entropy = tf.reduce_mean(cross_entropy)
 
@@ -151,9 +160,9 @@ def main(_):
         train_step = tf.train.AdamOptimizer(1e-4).minimize(cross_entropy)
 
     with tf.name_scope('accuracy'):
-        correct_prediction = tf.equal(tf.argmax(y_conv, 1), tf.argmax(correctAnswer, 1))
-        correct_prediction = tf.cast(correct_prediction, tf.float32)
-    accuracy = tf.reduce_mean(correct_prediction)
+        is_prediction_correct = tf.equal(tf.argmax(y_conv, 1), tf.argmax(correct_answer, 1))
+        is_prediction_correct = tf.cast(is_prediction_correct, tf.float32)
+    accuracy = tf.reduce_mean(is_prediction_correct)
 
     # For performance, we'll save the graph that we've built
     graph_location = tempfile.mkdtemp()
@@ -168,12 +177,12 @@ def main(_):
             batch = mnist.train.next_batch(50)
             if i % 100 == 0:
                 train_accuracy = accuracy.eval(feed_dict={
-                    imagePlaceholder: batch[0], correctAnswer: batch[1], keep_prob: 1.0})
+                    image_placeholder: batch[0], correct_answer: batch[1], keep_prob: 1.0})
                 print('step %d, training accuracy %g' % (i, train_accuracy))
-            train_step.run(feed_dict={imagePlaceholder: batch[0], correctAnswer: batch[1], keep_prob: 0.5})
+            train_step.run(feed_dict={image_placeholder: batch[0], correct_answer: batch[1], keep_prob: 0.5})
 
         print('test accuracy %g' % accuracy.eval(feed_dict={
-            imagePlaceholder: mnist.test.images, correctAnswer: mnist.test.labels, keep_prob: 1.0}))
+            image_placeholder: mnist.test.images, correct_answer: mnist.test.labels, keep_prob: 1.0}))
 
 
 if __name__ == '__main__':
