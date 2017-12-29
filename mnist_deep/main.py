@@ -96,6 +96,9 @@ def create_deep_neural_net(x):
         fully_connected_layer = tf.nn.relu(tf.matmul(pool2_flattened, fully_connected_layer_weight) + fully_connected_layer_bias)
 
     # Dropout - controls the complexity of the model, prevents co-adaptation of features.
+    # Basically this means randomly dropping neurons during the training process to prevent the model from becoming
+    # dependant on very particular inputs that are found in the training set, when we want it to be creating a more
+    # generalized model that will fit more than just our training set.
     with tf.name_scope('dropout'):
         keep_probability = tf.placeholder(tf.float32)
         fully_connected_layer_dropped = tf.nn.dropout(fully_connected_layer, keep_probability)
