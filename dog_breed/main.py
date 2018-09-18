@@ -64,6 +64,20 @@ def get_input_branch(input_shape=None):
     branch_input = Input(shape=input_shape)
     branch = GlobalAveragePooling2D()(branch_input)
     branch = Dense(size, use_bias=False, kernel_initializer='uniform')(branch)
+
+    # Batch Normalization is attempting to normalize the outputs of the previous layers (in this case, the output of
+    # the networks we're plugging in) so that drastic changes in values of the previous layers have a smaller effect on
+    # the later layers. Since every node and every layer is training at the same time, a small shift in a weight in the
+    # first layers can become a medium shift in the second or third layer and result in a massive shift in the layers
+    # towards the bottom. By normalizing at various intervals, we can make sure that small shifts early on don't cause
+    # a large ripple effect, allowing the later layers to train in a more stable independent way. Essentially, without
+    # this a small shift in earlier layers can completely mess up the training values in later layers, which would take
+    # more and more training to fix. By stabilising the input values to later layers and allowing their training to be
+    # more independent, we end up speeding over all training time.
+    #
+    # It also has a nice side effect of introducing some mathematical noise due to how it plays out, which can assist in
+    # preventing some overfitting when used with dropout layers. It's not there to replace dropout layers, but it can
+    # help
     branch = BatchNormalization()(branch)
     branch = Activation("relu")(branch)
     return branch, branch_input
