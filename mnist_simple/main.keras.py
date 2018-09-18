@@ -55,7 +55,7 @@ def baseline_model():
 model = baseline_model()
 
 # Fit our data in to the model that we've created
-model.fit(images_training, labels_training, validation_data=(images_test, labels_test), epochs=10, batch_size=200, verbose=2)
+model.fit(images_training, labels_training, validation_data=(images_test, labels_test), epochs=30, batch_size=200, verbose=2)
 
 # Evaluate
 scores = model.evaluate(images_test, labels_test, verbose=0)
